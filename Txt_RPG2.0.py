@@ -169,8 +169,8 @@ class Objects:
             print(f"You attack the {enemy.name} for {dmg} damage!")
         
         def magic(self, enemy):
-            spells = list(self.spell_book.keys())
-            if self.spell_book: 
+            if self.spell_book:
+                spells = list(self.spell_book.keys()) 
                 how_many_spells = len(self.spell_book)
                 x = 1
                 print("Spell book:")   
@@ -248,14 +248,28 @@ class Objects:
             escape_chance = random.randint(1, 100) + self.lvl - (enemy.hp/4)
             if escape_chance > 70:
                 print("You successfully escaped!")
-                self.move_back(move, game_map, restore_char='E')
-                return True
+                enemy.hp = enemy.hp_max
+                enemy.mp = enemy.mp_max
+                if enemy == boss:
+                    self.move_back(move, game_map, restore_char='D')
+                    enemy.trigger = False
+                    return True
+                else: 
+                    self.move_back(move, game_map, restore_char='E')
+                    return True
                 
             elif escape_chance > 50 and escape_chance <= 70:
                 print("You barely escaped and was hurt in the process!")
                 self.hp -= 10
-                self.move_back(move, game_map, restore_char='E')
-                return True
+                enemy.hp = enemy.hp_max
+                enemy.mp = enemy.mp_max
+                if enemy == boss:
+                    self.move_back(move, game_map, restore_char='D')
+                    enemy.trigger = False
+                    return True
+                else: 
+                    self.move_back(move, game_map, restore_char='E')
+                    return True
 
             else:
                 print("You failed to escape and the battle continues!")
@@ -364,20 +378,22 @@ class Objects:
 
         def heal(self, player, need_mana=False):
             if need_mana:
-                self.mp += self.mp_max / 5
+                self.mp += round(self.mp_max / 5)
                 need_mana = False
+                print(f'{self.name} restored {self.mp_max/5} mana!')
             elif self.hp <= self.hp_max / 2 or self.hp <= self.hp_max - 50:
-                self.hp += self.hp_max / 10
+                self.hp += round(self.hp_max / 10)
+                print(f'{self.name} restored {self.hp_max/10} health!')
             elif self.hp < self.mp_max / 2 or self.mp <= self.mp_max - 50:
-                self.mp += self.mp_max / 5
+                self.mp += round(self.mp_max / 5)
+                print(f'{self.name} restored {self.mp_max/5} health!')
             else:
                 self.attack(player)
             
         def magic(self, player):
-            spells = list(self.spell_book.keys())
-            spell_choice = random.choice(spells)
-
             if self.spell_book: 
+                spells = list(self.spell_book.keys())
+                spell_choice = random.choice(spells)
                 spell_mana = self.spell_book[spell_choice]
                 if self.mp >= spell_mana:
                     self.mp -= spell_mana
@@ -392,29 +408,34 @@ class Objects:
                 self.attack(player)
 
     class Boss:
-        def __init__(self, name, hp, mp, mp_max, hp_max, defense, str, mag_str, gold, exp):
+        def __init__(self, name, hp, mp, mp_max, hp_max, spell_book, defense, str, mag_str, gold, exp, trigger):
             self.name = name
             self.hp = hp
             self.mp = mp
             self.hp_max = hp_max
             self.mp_max = mp_max
+            self.spell_book = spell_book
             self.defense = defense
             self.str = str
             self.mag_str = mag_str
             self.gold = gold
             self.exp = exp
+            self.trigger = trigger
 
         def data_save(self):
-            return { 'name': self.name,
-                    'hp': self.hp,
-                    'mp': self.mp,
-                    'hp_max': self.hp_max,
-                    'mp_max': self.mp_max,
-                    'defense': self.defense,
-                    'str': self.str,
-                    'mag_str': self.mag_str,
-                    'gold': self.gold,
-                    'exp': self.exp,
+            return { 
+                'name': self.name,
+                'hp': self.hp,
+                'mp': self.mp,
+                'hp_max': self.hp_max,
+                'mp_max': self.mp_max,
+                'spell_book': self.spell_book,
+                'defense': self.defense,
+                'str': self.str,
+                'mag_str': self.mag_str,
+                'gold': self.gold,
+                'exp': self.exp,
+                'trigger': self.trigger
             }
         
         @classmethod
@@ -425,13 +446,50 @@ class Objects:
                 mp=data['mp'],
                 hp_max=data['hp_max'],
                 mp_max=data['mp_max'],
+                spell_book=data.get('spell_book', {}),
                 defense=data['defense'],
                 str=data['str'],
                 mag_str=data['mag_str'],
-                location=tuple(data['location']),
                 gold=data['gold'],
                 exp=data['exp'],
+                trigger=bool(data['trigger'])
             )
+
+        def attack(self, player):
+            dmg = round(self.str / player.defense)
+            player.hp -= dmg
+            print(f"{self.name} attacked you for {dmg} damage!")
+
+        def heal(self, player, need_mana=False):
+            if need_mana:
+                self.mp += round(self.mp_max / 5)
+                need_mana = False
+                print(f'{self.name} restored {self.mp_max/5} mana!')
+            elif self.hp <= self.hp_max / 2 or self.hp <= self.hp_max - 50:
+                self.hp += round(self.hp_max / 10)
+                print(f'{self.name} restored {self.hp_max/10} health!')
+            elif self.hp < self.mp_max / 2 or self.mp <= self.mp_max - 50:
+                self.mp += round(self.mp_max / 5)
+                print(f'{self.name} restored {self.mp_max/5} health!')
+            else:
+                self.attack(player)
+            
+        def magic(self, player):
+            if self.spell_book:
+                spells = list(self.spell_book.keys())
+                spell_choice = random.choice(spells) 
+                spell_mana = self.spell_book[spell_choice]
+                if self.mp >= spell_mana:
+                    self.mp -= spell_mana
+                    dmg = 5 + round(self.mag_str*(spell_mana/10))
+                    player.hp -= dmg
+                    print(f"{self.name} casted {spell_choice} on you for {dmg} damage!")
+
+                else:
+                    self.heal(player, need_mana = True)
+
+            else:
+                self.attack(player)
 
     class Town:
         def __init__(self, name, hp, hp_max, defense, str, location, gold, exp, player, game_map):
@@ -538,14 +596,16 @@ class Objects:
 
 
     class Dungeon:
-        def __init__(self, name, location, gold, exp, player, game_map):
+        def __init__(self, name, location, gold, exp, player, game_map, boss, game=None):
             self.name = name
             self.location = location
             self.gold = gold
             self.exp = exp
             self.player = player
             self.game_map = game_map
-            
+            self.boss = boss
+            self.game = game
+
             self.entry_direction = None
             self.dungeon_menu_choice = {'1':self.dungeon_leave,
                                         'leave':self.dungeon_leave,
@@ -573,8 +633,9 @@ class Objects:
                 entry_direction = self.entry_direction
             self.player.move_back(entry_direction, self.game_map, restore_char='D')
 
-        def boss_battle(self):
-            pass
+        def boss_battle(self, entry_direction=None):
+            if self.game:
+                self.game.battle(self.boss, self.player, entry_direction)
         
 class GameMap:
 
@@ -634,12 +695,13 @@ class GameMap:
                 )
     
 class Game:
-    def __init__(self, player, game_map, enemies, dungeon, town):
+    def __init__(self, player, game_map, enemies, dungeon, town, boss):
         self.player = player
         self.game_map = game_map
         self.enemies = enemies
         self.dungeon = dungeon
         self.town = town
+        self.boss = boss
 
     def get_input(self, prompt):
         choice = input(prompt).strip().lower()
@@ -657,11 +719,13 @@ class Game:
             'player': self.player.data_save(),
             'enemies': [enemy.data_save() for enemy in self.enemies],
             'game_map': self.game_map.data_save(),
+            'boss': self.boss.data_save(),
             'player_flags': {
                 'main_quest': self.player.main_quest,
                 'boss_item': self.player.boss_item,
             }
-        }
+
+        }   
         with open(filename, 'w') as save_file:
             json.dump(data, save_file, indent=2)
         print(f'Game saved to {filename}!')
@@ -677,13 +741,16 @@ class Game:
         player = Objects.Player.data_load(data['player'])
         enemies = [Objects.Enemy.data_load(enemy_data) for enemy_data in data['enemies']]
         game_map = GameMap.data_load(data['game_map'])
+        boss = Objects.Boss.data_load(data['boss'])
         town = Objects.Town(name='', hp=1000, hp_max=1000, defense=5, str=50, location=game_map.town_location,
-                            gold=random.randint(300, 1000), exp=random.randint(500, 1500),
-                            player=player, game_map=game_map)
+                            gold=random.randint(300, 1000), exp=random.randint(500, 1500), player=player, 
+                            game_map=game_map)
         dungeon = Objects.Dungeon(name='', location=game_map.dungeon_location,
                                   gold=random.randint(300, 1000), exp=random.randint(500, 1500),
-                                  player=player, game_map=game_map)
-        loaded_game = cls(player, game_map, enemies, dungeon, town)
+                                  player=player, game_map=game_map, boss=boss)
+
+        loaded_game = cls(player, game_map, enemies, dungeon, town, boss)
+        dungeon.game = loaded_game
         loaded_game.loaded = True
         return loaded_game
     
@@ -719,7 +786,7 @@ class Game:
                 '2.Humans\n'
                 '3.Dwarfs')
             self.player.lvl = 1
-            self.player.exp = 0
+            self.player.exp = 100
             self.player.cap_exp = 100
             self.player.estus = 1
             self.player.ashen = 1
@@ -759,6 +826,8 @@ class Game:
     def battle(self, enemy, player, direction, need_mana=False):
         print(f"You encounter a {enemy.name}!\n"
               'Battle starts!\n')
+        enemy.hp_max = enemy.hp
+        enemy.mp_max = enemy.mp
         while self.player.hp > 0 and enemy.hp > 0:        
             print(f"{self.player.name} HP: {self.player.hp}/{self.player.hp_max} | MP: {self.player.mp}/{self.player.mp_max}") 
             print(f"{enemy.name} HP: {enemy.hp}/{enemy.hp_max}\n")
@@ -774,7 +843,7 @@ class Game:
                 self.player.magic(enemy)
             elif action in ('3', 'item'):
                 self.player.item()
-            elif action in ('4', 'run'):
+            elif action in ('4', 'run'): 
                 if self.player.escape(enemy, direction, self.game_map):
                     break
             else:
@@ -800,6 +869,8 @@ class Game:
             print(f'You gained {enemy.exp} experience points and {enemy.gold} gold.')
             self.player.level_up()
             self.enemies.remove(enemy)
+            if enemy == boss:
+                self.player.boss_item = True
 
         
     def run(self):
@@ -814,6 +885,8 @@ class Game:
 
         if not getattr(self, 'loaded', False):
             self.game_map.place_enemies(self.enemies)
+
+        self.player.level_up()
 
         while self.player.main_quest == False:
             self.game_map.display_map()
@@ -841,7 +914,7 @@ class Game:
 
 
 player = Objects.Player(
-    name="", race="", c_class="", class_m="", lvl=0, exp=0, cap_exp=0,
+    name="", race="", c_class="", class_m="", lvl=0, exp=100, cap_exp=0,
     hp=0, mp=0, hp_max=0, mp_max=0, defense=0, str=0, mag_str=0,
     gold=0, inventory=(), location=(1,1), spell_book={}, estus=0,
     ashen=0, main_quest=False, boss_item=True
@@ -853,17 +926,23 @@ enemies = [Objects.Enemy(name="Goblin", hp=20, hp_max=0, mp=20, mp_max=0, defens
            
             ]
 
+boss = Objects.Boss(name="Goblin_boss", hp=20, hp_max=0, spell_book={}, mp=20, mp_max=0, defense=1, str=1,
+                        mag_str=0, gold=random.randint(1, 20),
+                        exp=random.randint(1, 20), trigger=False)
+
 game_map = GameMap(5, 5)
 
 town = Objects.Town(name='', hp=1000, hp_max=1000, defense=5, str=50, location=(0,0),
                     gold=random.randint(300, 1000), exp=random.randint(500, 1500),
                     player=player, game_map=game_map)
 
-dungeon = Objects.Dungeon(name='', location=(0,0),
-                    gold=random.randint(300, 1000),
-                    exp=random.randint(500, 1500), player=player, game_map=game_map)
+dungeon = Objects.Dungeon(name='', location=(0,0), gold=random.randint(300, 1000),
+                    exp=random.randint(500, 1500), player=player, game_map=game_map, boss=boss)
 
-game = Game(player, game_map, enemies, dungeon, town)
+game = Game(player, game_map, enemies, dungeon, town, boss)
+
+# Set game reference in dungeon so boss_battle can access it
+dungeon.game = game
 
 game = game.menu()
 while True:
